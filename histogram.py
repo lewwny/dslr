@@ -26,7 +26,7 @@ def get_numeric_cols(data: pd.DataFrame) -> List[str]:
 def safe_val(series) -> np.ndarray:
     """safe val for nans in a series"""
     arr = np.array(series, dtype=float)
-    return arr[~np.isnan(arr)]
+    return arr[~np.isnan(arr)]  
 
 
 def draw_histogram(data: pd.DataFrame, feature: str, houses: List[str], bins: int = 20) -> None:
@@ -45,6 +45,17 @@ def draw_histogram(data: pd.DataFrame, feature: str, houses: List[str], bins: in
     plt.show()
 
 
+def homogeneous_score(data: pd.DataFrame, feature: str, houses: List[str], bins: int = 20) -> float:
+    """calculates homogenity score for houses"""
+    values = safe_val(data[feature])
+    if values.size < 2:
+        return float("inf")
+    minval = float(np.min(values))
+    maxval = float(np.max(values))
+    if minval == maxval:
+        return 0.0
+    
+
 def compute(data: pd.DataFame, houses: List):
     """function that splits values by house in order to show
     'Which Hogwarts course has a homogeneous score distribution
@@ -54,6 +65,16 @@ def compute(data: pd.DataFame, houses: List):
         if data[col].dtype not in ['int64', 'float64']:
             continue
         col_data = data[col].dropna()
+
+    best_feature = None
+    best_score = float("inf")
+
+    for f in features:
+        score = homogeneous_score(data, f, houses, bins=20)
+        if score < best_score:
+            best_score = score
+
+    print(f"Most homogeneous course: {best_feature}\nScore: {best_score:.6f}")
 
 
 
