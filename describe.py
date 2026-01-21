@@ -1,4 +1,4 @@
-from load import load_csv
+from load import load
 import pandas as pd
 import sys
 
@@ -83,7 +83,7 @@ def main():
         if len(sys.argv) != 2:
             raise ValueError("Please provide exactly one argument: the path to the CSV file.")
         path = sys.argv[1]
-        data = load_csv(path)
+        data = load(path)
         print(ft_describe(data))
     except Exception as e:
         print(f"An error occurred: {e}")
