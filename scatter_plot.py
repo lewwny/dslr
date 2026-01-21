@@ -1,55 +1,93 @@
+import sys
+from load import load
+from typing import Dict, List, Tuple
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from utils import get_numeric_cols, safe_pair
 
 
-def draw_chart(km_list_raw: list, price_list: list,
-               y1: float, y2: float, preds: list, metrics: dict):
-    """draws plots for linear regression and metrics"""
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+def pearson_corr_algo(x: np.ndarray, y: np.ndarray) -> float:
+    """Pearson correlation algorithm for seeing which two features are the most similar"""
+    size = x.size
+    if size < 2:
+        return 0.0
 
-    # linear regression fit
-    axes[0, 0].scatter(km_list_raw, price_list, label="Actual Data",
-                       alpha=0.75, s=60, edgecolors='black')
-    axes[0, 0].plot([min(km_list_raw), max(km_list_raw)], [y1, y2], 'r-',
-                    linewidth=2, label="Regression Line")
-    axes[0, 0].set_title("Linear Regression", fontsize=14, fontweight='bold')
-    axes[0, 0].set_xlabel("Mileage (km)", fontsize=12)
-    axes[0, 0].set_ylabel("Price", fontsize=12)
-    axes[0, 0].legend()
-    axes[0, 0].grid(True, alpha=0.3)
+    mx = float(np.sum(x) / size)
+    my = float(np.sum(y) / size)
+    dx = x - mx
+    dy = y - my
 
-    # actual vs predicted price
-    axes[0, 1].scatter(price_list, preds, alpha=0.75, s=60, edgecolors='black')
-    min_val = min(min(price_list), min(preds))
-    max_val = max(max(price_list), max(preds))
-    axes[0, 1].plot([min_val, max_val], [min_val, max_val], 'r--',
-                    linewidth=2, label="Perfect Prediction")
-    axes[0, 1].set_title("Actual vs Predicted Prices", fontsize=14,
-                         fontweight='bold')
-    axes[0, 1].set_xlabel("Actual Price", fontsize=12)
-    axes[0, 1].set_ylabel("Predicted Price", fontsize=12)
-    axes[0, 1].legend()
-    axes[0, 1].grid(True, alpha=0.3)
+    num = float(np.sum(dx * dy))
+    den = float(np.sqrt(np.sum(dx * dx) * np.sum(dy * dy)))
 
-    # residuals
-    residuals = [actual - pred for actual, pred in zip(price_list, preds)]
-    axes[1, 0].scatter(km_list_raw, residuals, alpha=0.75, s=60,
-                       edgecolors='black')
-    axes[1, 0].axhline(y=0, color='r', linestyle='--', linewidth=2)
-    axes[1, 0].set_title("Residuals Plot", fontsize=14, fontweight='bold')
-    axes[1, 0].set_xlabel("Mileage (km)", fontsize=12)
-    axes[1, 0].set_ylabel("Residual", fontsize=12)
-    axes[1, 0].grid(True, alpha=0.3)
+    if den == 0:
+        return 0.0
 
-    # metrics summary
-    axes[1, 1].axis('off')
-    metrics_text = "Model Performance Metrics\n\n"
-    metrics_text += f"Rsquared Score: {metrics['R2']:.4f}\n"
-    metrics_text += "(Closer to 1 = better fit)\n\n"
-    metrics_text += f"MAE: -+{metrics['MAE']:.2f}\n(Mean Absolute Error)\n\n"
-    metrics_text += f"RMSE: -+{metrics['RMSE']:.2f}\n"
-    metrics_text += "(Root Mean Squared Error)\n\n"
-    metrics_text += f"Data Points: {len(price_list)}\n"
-    axes[1, 1].text(0.1, 0.5, metrics_text, fontsize=13, family='monospace',
-                    verticalalignment='center', bbox=dict(boxstyle='round'))
+    return num / den
 
+
+def draw_scatter(data: pd.DataFrame, subject1: str, subject2: str, houses: List[str]) -> None:
+    """function to draw the scatter plot"""
+    plt.figure(figsize=(14, 6))
+    for h in houses:
+        mask = (data["Hogwarts House"] == h)
+        x, y = safe_pair(data.loc[mask, subject1], data.loc[mask, subject2])
+        plt.scatter(x, y, alpha=0.5, s=60, label=h, edgecolors="black")
+
+    plt.title(f"Scatter plot - {subject1} vs {subject2}\nMost similar feature by Pearson correlation",
+              fontsize=14, fontweight="bold")
+    plt.xlabel(subject1, fontsize=12)
+    plt.ylabel(subject2, fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.legend()
     plt.tight_layout()
     plt.show()
+
+
+def compute(data: pd.DataFrame, houses: List):
+    """function that splits values by house in order to show
+    'What are the two features that are similar?'"""
+
+    for col in data.columns:
+        if data[col].dtype not in ['int64', 'float64']:
+            continue
+        col_data = data[col].dropna()
+
+    subjects = get_numeric_cols(data)
+    best_pair = None
+    best_corr = 0.0
+    best_abs_corr = -1.0
+
+    for i in range(len(subjects)):
+        for j in range(i + 1, len(subjects)):
+            s1, s2 = subjects[i], subjects[j]
+            x, y = safe_pair(data[s1], data[s2])
+            corr = pearson_corr_algo(x, y)
+            abs_corr = abs(corr)
+            if abs_corr > best_abs_corr:
+                best_abs_corr = abs_corr
+                best_corr = corr
+                best_pair = (s1, s2)
+
+    s1, s2 = best_pair
+    print(f"Best correlation between subjects: {s1} and {s2}")
+    print(f"Pearson correlation score: {best_corr:.6f}")
+
+    draw_scatter(data, s1, s2, houses)
+
+
+def main():
+    """main func"""
+    try:
+        if len(sys.argv) != 2:
+            raise ValueError("Please provide exactly one argument: the path to the CSV file.")
+        path = sys.argv[1]
+        data = load(path)
+        houses = sorted([h for h in data["Hogwarts House"].dropna().unique()])
+        compute(data, houses)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()
