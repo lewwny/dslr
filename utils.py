@@ -12,7 +12,7 @@ def get_numeric_cols(data: pd.DataFrame) -> List[str]:
     """gets numerical columns from data"""
     cols = []
     for col in data.columns:
-        if col == "Hogwarts House":
+        if col in ["Hogwarts House", "Index"]:
             continue
         if is_numeric_series(data[col]):
             cols.append(col)
