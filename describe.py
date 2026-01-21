@@ -67,6 +67,8 @@ def ft_describe(data):
     """Describe function"""
     new_data = pd.DataFrame()
     for col in data.columns:
+        if col in ['Index', 'Hogwarts House']:
+            continue
         if data[col].dtype not in ['int64', 'float64']:
             continue
         col_data = data[col].dropna()
