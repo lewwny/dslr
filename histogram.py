@@ -39,7 +39,7 @@ def draw_histogram(data: pd.DataFrame, subject: str, houses: List[str], bins: in
 def homogeneous_score(data: pd.DataFrame, subject: str, houses: List[str], bins: int = 20) -> float:
     """calculates homogenity score for houses"""
     values = safe_val(data[subject])
-    if values.size() < 2:
+    if values.size < 2:
         return float("inf")
     minval = float(np.min(values))
     maxval = float(np.max(values))
@@ -51,19 +51,20 @@ def homogeneous_score(data: pd.DataFrame, subject: str, houses: List[str], bins:
     for h in houses:
         mask = (data["Hogwarts House"] == h)
         vals = safe_val(data.loc[mask, subject])
-        if vals.size() == 0:
+        if vals.size == 0:
             return float("inf")
         hist, _ = np.histogram(vals, bins=edge)
         hist = hist.astype(float)
         if hist.sum() == 0:
             return float("inf")
-        hists[h] = hist / hist.sum
+        hists[h] = hist / hist.sum()
 
     scores = []
+    eps = 1e-10
     for i in range(len(houses)):
         for j in range(i + 1, len(houses)):
-            scores.append(js_algo(hists[houses[i]], hists[houses[i]]))
-        return float(np.mean(scores)) if scores else float("inf")
+            scores.append(js_algo(hists[houses[i]], hists[houses[j]], eps))
+    return float(np.mean(scores)) if scores else float("inf")
 
 
 def compute(data: pd.DataFrame, houses: List):
@@ -84,10 +85,11 @@ def compute(data: pd.DataFrame, houses: List):
         score = homogeneous_score(data, s, houses, bins=20)
         if score < best_score:
             best_score = score
+            best_subject = s
 
     print(f"Most homogeneous course: {best_subject}\nScore: {best_score:.6f}")
 
-    draw_histogram(data, subjects, houses, bins=20)
+    draw_histogram(data, best_subject, houses, bins=20)
 
 
 def main():

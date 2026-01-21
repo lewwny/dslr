@@ -27,4 +27,7 @@ def safe_val(series) -> np.ndarray:
 
 def safe_pair(x, y) -> Tuple[np.ndarray, np.ndarray]:
     """safe pairs for nans in pairs"""
-    return safe_val(x), safe_val(y)
+    x_arr = np.array(x, dtype=float)
+    y_arr = np.array(y, dtype=float)
+    mask = ~(np.isnan(x_arr) | np.isnan(y_arr))
+    return x_arr[mask], y_arr[mask]
