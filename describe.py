@@ -1,4 +1,4 @@
-from load import load_csv
+from load import load
 import pandas as pd
 import sys
 
@@ -10,15 +10,20 @@ def counter(data):
 def meaner(data):
     """Mean function"""
     count = counter(data)
-    sum = data.sum()
-    mean = sum / count if count != 0 else 0
+    total = 0
+    for value in data:
+        total += value
+    mean = total / count if count != 0 else 0
     return mean
 
 def stder(data):
     """Standard Deviation function"""
     mean = meaner(data)
     squared_diffs = (data - mean) ** 2
-    variance = squared_diffs.sum() / (counter(data) - 1) if counter(data) > 1 else 0
+    total_sq_diff = 0
+    for value in squared_diffs:
+        total_sq_diff += value
+    variance = total_sq_diff / (counter(data) - 1) if counter(data) > 1 else 0
     std_dev = variance ** 0.5
     return std_dev
 
@@ -62,6 +67,8 @@ def ft_describe(data):
     """Describe function"""
     new_data = pd.DataFrame()
     for col in data.columns:
+        if col in ['Index', 'Hogwarts House']:
+            continue
         if data[col].dtype not in ['int64', 'float64']:
             continue
         col_data = data[col].dropna()
@@ -83,7 +90,7 @@ def main():
         if len(sys.argv) != 2:
             raise ValueError("Please provide exactly one argument: the path to the CSV file.")
         path = sys.argv[1]
-        data = load_csv(path)
+        data = load(path)
         print(ft_describe(data))
     except Exception as e:
         print(f"An error occurred: {e}")
