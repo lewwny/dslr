@@ -31,3 +31,6 @@ def safe_pair(x, y) -> Tuple[np.ndarray, np.ndarray]:
     y_arr = np.array(y, dtype=float)
     mask = ~(np.isnan(x_arr) | np.isnan(y_arr))
     return x_arr[mask], y_arr[mask]
+
+def sigmoid(arr: np.ndarray) -> np.ndarray:
+    
