@@ -1,157 +1,82 @@
-import math
-import matplotlib.pyplot as plt
+import numpy as np
+import argparse
 from typing import List, Dict
-from logreg_train import get_km_price
-from logreg_predict import estimate_price, normalize_data, load_model
+from utils import sigmoid, preprocess_vals, load_model, add_bias
+from load import load
 
 
-def compute(price_list: List[float], preds: List[float]) -> Dict[str, float]:
-    """computes metrics using list of prices and predictions"""
-    sample_count = len(price_list)
-
-    #  mean absolute error
-    mae = 0.0
-    for actual, predicted in zip(price_list, preds):
-        mae += abs(actual - predicted)
-    mae /= sample_count
-
-    # mean square error
-    mse = 0.0
-    for actual, predicted in zip(price_list, preds):
-        mse += (actual - predicted) ** 2
-    mse /= sample_count
-
-    # root mean squared error
-    rmse = math.sqrt(mse)
-
-    # coefficient of determination
-    mean_price = sum(price_list) / sample_count
-
-    # total sum of squares (variance)
-    ss_total = 0.0
-    for price in price_list:
-        ss_total += (price - mean_price) ** 2
-
-    # residual sum of squares (variance prediction error)
-    ss_residual = 0.0
-    for actual, predicted in zip(price_list, preds):
-        ss_residual += (actual - predicted) ** 2
-
-    # r2 squared coefficient of determination
-    if ss_total != 0:
-        r2 = 1.0 - (ss_residual / ss_total)
-    else:
-        r2 = 0.0
-
-    return {"MAE": mae, "RMSE": rmse, "R2": r2}
-
-
-def pred_from_raw(x: float, normalized: bool, x_min: float, x_max: float,
-                  theta0: float, theta1: float) -> float:
-    x_used = x
-    if normalized:
-        x_used = normalize_data(x, float(x_min), float(x_max))
-    return estimate_price(x_used, theta0, theta1)
-
-
-def draw_chart(km_list_raw: list, price_list: list,
-               y1: float, y2: float, preds: list, metrics: dict):
-    """draws plots for linear regression and metrics"""
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
-    # linear regression fit
-    axes[0, 0].scatter(km_list_raw, price_list, label="Actual Data",
-                       alpha=0.75, s=60, edgecolors='black')
-    axes[0, 0].plot([min(km_list_raw), max(km_list_raw)], [y1, y2], 'r-',
-                    linewidth=2, label="Regression Line")
-    axes[0, 0].set_title("Linear Regression", fontsize=14, fontweight='bold')
-    axes[0, 0].set_xlabel("Mileage (km)", fontsize=12)
-    axes[0, 0].set_ylabel("Price", fontsize=12)
-    axes[0, 0].legend()
-    axes[0, 0].grid(True, alpha=0.3)
-
-    # actual vs predicted price
-    axes[0, 1].scatter(price_list, preds, alpha=0.75, s=60, edgecolors='black')
-    min_val = min(min(price_list), min(preds))
-    max_val = max(max(price_list), max(preds))
-    axes[0, 1].plot([min_val, max_val], [min_val, max_val], 'r--',
-                    linewidth=2, label="Perfect Prediction")
-    axes[0, 1].set_title("Actual vs Predicted Prices", fontsize=14,
-                         fontweight='bold')
-    axes[0, 1].set_xlabel("Actual Price", fontsize=12)
-    axes[0, 1].set_ylabel("Predicted Price", fontsize=12)
-    axes[0, 1].legend()
-    axes[0, 1].grid(True, alpha=0.3)
-
-    # residuals
-    residuals = [actual - pred for actual, pred in zip(price_list, preds)]
-    axes[1, 0].scatter(km_list_raw, residuals, alpha=0.75, s=60,
-                       edgecolors='black')
-    axes[1, 0].axhline(y=0, color='r', linestyle='--', linewidth=2)
-    axes[1, 0].set_title("Residuals Plot", fontsize=14, fontweight='bold')
-    axes[1, 0].set_xlabel("Mileage (km)", fontsize=12)
-    axes[1, 0].set_ylabel("Residual", fontsize=12)
-    axes[1, 0].grid(True, alpha=0.3)
-
-    # metrics summary
-    axes[1, 1].axis('off')
-    metrics_text = "Model Performance Metrics\n\n"
-    metrics_text += f"Rsquared Score: {metrics['R2']:.4f}\n"
-    metrics_text += "(Closer to 1 = better fit)\n\n"
-    metrics_text += f"MAE: -+{metrics['MAE']:.2f}\n(Mean Absolute Error)\n\n"
-    metrics_text += f"RMSE: -+{metrics['RMSE']:.2f}\n"
-    metrics_text += "(Root Mean Squared Error)\n\n"
-    metrics_text += f"Data Points: {len(price_list)}\n"
-    axes[1, 1].text(0.1, 0.5, metrics_text, fontsize=13, family='monospace',
-                    verticalalignment='center', bbox=dict(boxstyle='round'))
-
-    plt.tight_layout()
-    plt.show()
-
-
-def predict_subjects(col: np.ndarray, subjects: List[str], thetas: Dict[str, List[float]]) -> List[str]:
+def predict_classes(col: np.ndarray, classes: List[str], thetas: Dict[str, List[float]]) -> List[str]:
     probas = []
-    for house in subjects:
+    for house in classes:
         theta = np.array(thetas[house], dtype=float)
         proba = sigmoid(col @ theta)
         probas.append(proba)
 
     pstack = np.vstack(probas).T
     indices = np.argmax(pstack, axis=1)
-    return [subjects[int(i)] for i in indices]
+    return [classes[int(i)] for i in indices]
 
 
+def compute_accuracy(y_true: List[str], y_pred: List[str]) -> float:
+    correct = 0
+    size = len(y_true)
+    for true, pred in zip(y_true, y_pred):
+        if true == pred:
+            correct += 1
+    return (correct / size) if size > 0 else 0.0
+
+
+def confusion_matrix(y_true: List[str], y_pred: List[str], classes: List[str]) -> np.ndarray:
+    size = len(classes)
+    indices = {clas: i for i, clas in enumerate(classes)}
+    cmatrix = np.zeros((size, size), dtype=int)
+    for true, pred in zip(y_true, y_pred):
+        if true in indices and pred in indices:
+            cmatrix[indices[true], indices[pred]] +=1
+    return cmatrix
 
 
 def main() -> int:
-    """plots the linear regression and calculates precision metrics."""
-    # load trained model
-    model = load_model("model.json")
-    theta0 = float(model["theta0"])
-    theta1 = float(model["theta1"])
-    normalized = bool(model.get("normalized", False))
-    x_min = model.get("x_min", None)
-    x_max = model.get("x_max", None)
+    """"""
+    parser = argparse.ArgumentParser(description="Evaluate the DSLR model (accuracy + confusion matrix)")
+    parser.add_argument("data_csv", help="Path to dataset_test.csv")
+    parser.add_argument("--out", default="houses.csv", help="Output predictions file (houses.csv)")
+    args = parser.parse_args()
 
-    km_list_raw, price_list = get_km_price("data.csv")
+    try:
+        model = load_model("model.json")
+        thetas = model["thetas_dict"]
+        classes = model["classes"]
+        subjects = model["subjects"]
+        mu = model["mu"]
+        sigma = model["sigma"]
 
-    preds = []
-    for km in km_list_raw:
-        x_used = km
-        if normalized:
-            x_used = normalize_data(km, float(x_min), float(x_max))
-        preds.append(estimate_price(x_used, theta0, theta1))
+        data = load(args.data_csv)
+        if data is None:
+            raise ValueError("Could not load the data csv")
+        if "Hogwarts Houses" not in data.columns:
+            raise ValueError("Data csv must contain Hogwarts Houses")
 
-    metrics = compute(price_list, preds)
-    print("metrics from training data:")
-    for key, val in metrics.items():
-        print(f"{key}: {val:.6f}")
+        vals = preprocess_vals(data, subjects, mu, sigma)
+        biased_vals = add_bias(vals)
 
-    y1 = pred_from_raw(min(km_list_raw), normalized,
-                       x_min, x_max, theta0, theta1)
-    y2 = pred_from_raw(max(km_list_raw), normalized,
-                       x_min, x_max, theta0, theta1)
-    draw_chart(km_list_raw, price_list, y1, y2, preds, metrics)
+        y_true = [str(val) for val in data["Hogwarts Houses"].to_numpy()]
+        y_pred = predict_classes(biased_vals, classes, thetas)
+
+        acc = compute_accuracy(y_true, y_pred)
+        print(f"Accuracy: {acc*100:.2f}%\n")
+
+        cm = confusion_matrix(y_true, y_pred, classes)
+        print("Confusion Matrix (rows=true, cols=pred):")
+        header = " " * 14 + " ".join([f"{clas[:10]:>10}" for clas in classes])
+        print(header)
+        for index, clas in enumerate(classes):
+            row = " ".join([f"{cm[index, clas]:>10d}" for i in range(len(classes))])
+            print(f"{clas[:12]:>12}  {row}")
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
 
     return 0
 
