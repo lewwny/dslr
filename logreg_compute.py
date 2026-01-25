@@ -2,7 +2,7 @@ import math
 import matplotlib.pyplot as plt
 from typing import List, Dict
 from logreg_train import get_km_price
-from logreg_predict import estimate_price, normalize_data, load_thetas
+from logreg_predict import estimate_price, normalize_data, load_model
 
 
 def compute(price_list: List[float], preds: List[float]) -> Dict[str, float]:
@@ -109,10 +109,24 @@ def draw_chart(km_list_raw: list, price_list: list,
     plt.show()
 
 
+def predict_subjects(col: np.ndarray, subjects: List[str], thetas: Dict[str, List[float]]) -> List[str]:
+    probas = []
+    for house in subjects:
+        theta = np.array(thetas[house], dtype=float)
+        proba = sigmoid(col @ theta)
+        probas.append(proba)
+
+    pstack = np.vstack(probas).T
+    indices = np.argmax(pstack, axis=1)
+    return [subjects[int(i)] for i in indices]
+
+
+
+
 def main() -> int:
     """plots the linear regression and calculates precision metrics."""
     # load trained model
-    model = load_thetas("thetas.json")
+    model = load_model("model.json")
     theta0 = float(model["theta0"])
     theta1 = float(model["theta1"])
     normalized = bool(model.get("normalized", False))

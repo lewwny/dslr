@@ -2,7 +2,7 @@ import json
 import matplotlib.pyplot as plt
 from typing import List, Tuple, Dict
 from load import load
-from utils import get_numeric_cols 
+from utils import get_numeric_cols, load_model, sigmoid, arr_tofloat
 
 
 def normalize_data(km_list: List[float]) -> Tuple[List[float], float, float]:
@@ -152,7 +152,7 @@ def main() -> int:
     model["learning_rate"] = learn
     model["iterations"] = iters
 
-    output_file = "thetas.json"
+    output_file = "model.json"
     save_file(output_file, model)
     print(f"Finished training model and saved to {output_file}")
     values = f"Values: theta0={theta0:.6f}, theta1={theta1:.6f},"
