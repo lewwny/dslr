@@ -5,6 +5,8 @@ import argparse
 from typing import List, Tuple, Dict
 from load import load
 from utils import get_numeric_cols, sigmoid, add_bias
+from bonus import sgd, minibatch
+
 
 def replace_nan(arr: np.ndarray) -> np.ndarray:
     """replaces nan values with the mean for ML"""
@@ -89,7 +91,7 @@ def gradient_descent(X: np.ndarray, y: np.ndarray, theta: float,
     return theta, cost_hist
 
 
-def train_model(X: np.ndarray, y_labels: np.ndarray, houses: list, lr: float, iters: int):
+def train_model(X: np.ndarray, y_labels: np.ndarray, houses: list, lr: float, iters: int, method: str):
     """train model using logistic regression binary classifiers
     for each house we use:
     - positive samples (y=1) -> students in this house
@@ -109,7 +111,14 @@ def train_model(X: np.ndarray, y_labels: np.ndarray, houses: list, lr: float, it
         print(f"Samples: {int(n_pos)} positive, {int(n_neg)} negative")
 
         theta = np.zeros((n_features, 1))
-        theta, cost_hist = gradient_descent(X, y_bin, theta, lr, iters)
+
+        # select method for gradient_descent
+        if method == "batch":
+            theta, cost_hist = gradient_descent(X, y_bin, theta, lr, iters)
+        elif method == "sgd":
+            theta, cost_hist = sgd(X, y_bin, theta, lr, iters)
+        elif method == "minibatch":
+            theta, cost_hist = minibatch(X, y_bin, theta, lr, iters)
 
         thetas_dict[house] = theta.flatten().tolist()
         costs[house] = cost_hist
@@ -176,6 +185,9 @@ def main() -> int:
                         help="Number of iterations (default: 2000)")
     parser.add_argument("--out", default="model.json",
                         help="Output model file (default: model.json)")
+    parser.add_argument("--method", choices=["batch", "sgd", "minibatch"],
+                        default="batch", help="Gradient descent method")
+    parser.add_argument("--b-size", type=int, default=32, help="Batch size for minibatch GD")
     args = parser.parse_args()
 
     try:
@@ -207,8 +219,8 @@ def main() -> int:
         X_final = add_bias(X_norm)
 
         # training
-        print(f"Training... Params: learning_rate={args.lr}, iterations={args.iters}")
-        thetas_dict, cost_hist = train_model(X_final, y_labels, houses, args.lr, args.iters)
+        print(f"Training... Params: learning_rate={args.lr}, iterations={args.iters}, method={args.method}")
+        thetas_dict, cost_hist = train_model(X_final, y_labels, houses, args.lr, args.iters, args.method)
 
         # save model
         print(f"Saving model to {args.out}...")
