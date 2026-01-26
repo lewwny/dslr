@@ -5,13 +5,14 @@ from typing import List
 import argparse
 
 def houses_tocsv(path: str, preds: List[str]) -> None:
+    """writes into csv list of predictions"""
     with open(path, "w", encoding="utf-8") as file:
         file.write("Index,Hogwarts House\n")
         for index, house in enumerate(preds):
-            file.write(f"{index}, {house}\n")
+            file.write(f"{index},{house}\n")
 
 def main() -> int:
-    """"""
+    """loads model, processes vals and writes predictions to csv"""
     parser = argparse.ArgumentParser(description="DSLR Logistic Regression Predictor (one-vs-rest)")
     parser.add_argument("data_csv", help="Path to dataset_test.csv")
     parser.add_argument("--out", default="houses.csv", help="Output predictions file (houses.csv)")
@@ -20,7 +21,7 @@ def main() -> int:
     try:
         model = load_model("model.json")
         thetas_dict = model["thetas_dict"]
-        classes = model["classes"]
+        houses = model["houses"]
         subjects = model["subjects"]
         mu = model["mu"]
         sigma = model["sigma"]
@@ -33,14 +34,14 @@ def main() -> int:
         biased_vals = add_bias(vals)
 
         probas = []
-        for house in classes:
+        for house in houses:
             theta = np.array(thetas_dict[house], dtype=float)
             proba = sigmoid(biased_vals @ theta)
             probas.append(proba)
 
         pstack  = np.vstack(probas).T
         indices = np.argmax(pstack, axis=1)
-        preds = [classes[int(i)] for i in indices]
+        preds = [houses[int(i)] for i in indices]
 
         houses_tocsv(args.out, preds)
         print(f"Wrote predictions to: {args.out}")

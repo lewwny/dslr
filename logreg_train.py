@@ -1,168 +1,226 @@
 import json
+import numpy as np
 import matplotlib.pyplot as plt
+import argparse
 from typing import List, Tuple, Dict
 from load import load
-from utils import get_numeric_cols, load_model, sigmoid, arr_tofloat
+from utils import get_numeric_cols, sigmoid, add_bias
+
+def replace_nan(arr: np.ndarray) -> np.ndarray:
+    """replaces nan values with the mean for ML"""
+    copy = arr.copy()
+    for col_idx in range(copy.shape[1]):
+        col = copy[:, col_idx]
+        valid_mask = ~np.isnan(col)
+        if np.any(valid_mask):
+            col_mean = np.mean(col[valid_mask])
+        else:
+            col_mean = 0.0
+        nan_mask = np.isnan(col)
+        copy[nan_mask, col_idx] = col_mean
+
+    return copy
 
 
-def normalize_data(km_list: List[float]) -> Tuple[List[float], float, float]:
-    """data normalizer using the list of km values"""
-    x_min = min(km_list)
-    x_max = max(km_list)
-    if x_min == x_max:
-        raise ValueError("Cannot train based on values given")
-    km_normalized = []
-    for km in km_list:
-        km_normalized.append((km - x_min) / (x_max - x_min))
-    return km_normalized, x_min, x_max
+def compute_mu_sig(arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """computes the mean and std for an array"""
+    mu = np.mean(arr, axis=0)
+    sigma = np.std(arr, axis=0)
+    sigma[sigma == 0] = 1.0
+
+    return mu, sigma
 
 
-def estimate_price(mileage: float, theta0: float, theta1: float) -> float:
-    """price estimation using the function from the subject"""
-    return theta0 + (theta1 * mileage)
+def compute_cost(h: np.ndarray, y: np.ndarray) -> float:
+    """computes binary cross entropy (log loss)
+    formula: J(θ) = -1/m * sigma[y*log(h) + (1-y)*log(1-h)]
+    - When y=1: we want h close to 1, so -log(h) penalizes low h
+    - When y=0: we want h close to 0, so -log(1-h) penalizes high h
+    - The penalty grows exponentially for confident wrong predictions
+    - We clip h to avoid log(0) = -inf for numerical stability"""
+    m = len(y)
+    eps = 1e-15
+    h_clip = np.clip(h, eps, 1 - eps)
+
+    cost = -1/m * np.sum(y * np.log(h_clip) + (1 - y) * np.log(1 - h_clip))
+    return cost
 
 
-def gradient_descent(theta0: float, theta1: float, learning_rate: float,
-                     iterations: int, mileage_list: List[float],
-                     price_list: List[float]
-                     ) -> Tuple[float, float, List[float]]:
-    """Gradient descent algorithm for linear regression
-    tmp_t0 = l_rate*(1/m)*sum(est_price(mileage[i])-price[i])
-    tmp_t1 = l_rate*(1/m)*sum((est_price(mileage[i])-price[i])*mileage[i])"""
-    val_count = len(mileage_list)
-    loss_history = []
+def normalize(arr: np.ndarray, mu: np.ndarray, sigma: np.ndarray) -> np.ndarray:
+    """z score normalization of arr vals using the mean and std"""
+    return (arr - mu) / sigma
+
+
+def gradient_descent(X: np.ndarray, y: np.ndarray, theta: float,
+                     learning_rate: float, iterations: int, verb: bool = True):
+    """Batch Gradient Descent for logistic regression.
+    1. Compute predictions: h = sigmoid(X @ θ)
+    2. Compute gradient: deltaJ = (1/m) * X.T(h - y)
+    3. Update weights: θ = θ - alpha * deltaJ
+    4. Repeat for n iterations
+
+    - X: Feature matrix with bias column (m samples * n+1 features)
+    - y: Binary labels (m * 1), where 1 = this house, 0 = other houses
+    - theta: Initial weights (n+1 * 1), usually zeros
+    - learning_rate (alpha): Step size: too high -> diverge, too low -> slow
+    - iterations: Number of gradient descent steps"""
+    m = len(y)
+    cost_hist = []
 
     for i in range(iterations):
-        # sum of errors for theta0 and theta1
-        sum_error_theta0 = 0.0
-        sum_error_theta1 = 0.0
+        # computes prediction with linear combination + squashing to probas
+        z = X @ theta
+        h = sigmoid(z)
 
-        for j in range(val_count):
-            prediction = estimate_price(mileage_list[j], theta0, theta1)
-            error = prediction - price_list[j]
-            sum_error_theta0 += error
-            sum_error_theta1 += error * mileage_list[j]
+        # compute gradient from the derivative of cost function
+        gradient = (1/m) * (X.T @ (h - y))
 
-        # temp tethas
-        tmp_theta0 = learning_rate * (1 / val_count) * sum_error_theta0
-        tmp_theta1 = learning_rate * (1 / val_count) * sum_error_theta1
+        # update weights
+        theta - theta - learning_rate * gradient
 
-        # update thetas
-        theta0 = theta0 - tmp_theta0
-        theta1 = theta1 - tmp_theta1
+        # compute cost and add to history
+        cost = compute_cost(h, y)
+        cost_hist.append(cost)
 
-        # MSE for this iteration
-        mse = 0.0
-        for j in range(val_count):
-            prediction = estimate_price(mileage_list[j], theta0, theta1)
-            mse += (prediction - price_list[j]) ** 2
-        mse /= val_count
-        loss_history.append(mse)
+        # print verbose
+        if verb and (i + 1) % 100 == 0:
+            print(f"Iteration {i+1}/{iterations}, Cost: {cost:.6f}")
 
-        if (i + 1) % 100 == 0:
-            itermessage = f"Iteration {i + 1}: theta0 = {theta0:.6f},"
-            itermessage += f"theta1 = {theta1:.6f}, MSE = {mse:.2f}"
-            print(itermessage)
-
-    return theta0, theta1, loss_history
+    return theta, cost_hist
 
 
-def plot_training_metrics(loss_history: List[float], iterations: int) -> None:
-    """Visualize training progress: loss over iterations"""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+def train_model(X: np.ndarray, y_labels: np.ndarray, houses: list, lr: float, iters: int):
+    """train model using logistic regression binary classifiers
+    for each house we use:
+    - positive samples (y=1) -> students in this house
+    - negative samples (y=0) -> students in all other houses
+    results in 4 theta vectors -> 1 theta per house
+    in prediction, we run all 4 thetas and keep one with highest probability"""
+    n_features = X.shape[1]
+    thetas_dict = {}
+    costs = {}
 
-    # loss over all iterations
-    axes[0].plot(range(iterations), loss_history, 'b-', linewidth=1.5)
-    axes[0].set_xlabel('Iteration', fontsize=12)
-    axes[0].set_ylabel('MSE Loss', fontsize=12)
-    axes[0].set_title('Training Loss Over Iterations', fontsize=14)
-    axes[0].grid(True, alpha=0.3)
+    for house in houses:
+        print(f"Training classifier for {house}")
+        y_bin = (y_labels == house).astype(float).reshape(-1, 1)
 
-    # log scale to see convergence
-    axes[1].plot(range(iterations), loss_history, 'r-', linewidth=1.5)
-    axes[1].set_xlabel('Iteration', fontsize=12)
-    axes[1].set_ylabel('MSE Loss (log scale)', fontsize=12)
-    axes[1].set_title('Training Loss (Log Scale)', fontsize=14)
-    axes[1].set_yscale('log')
-    axes[1].grid(True, alpha=0.3)
+        n_pos = np.sum(y_bin)
+        n_neg = len(y_bin) - n_pos
+        print(f"Samples: {int(n_pos)} positive, {int(n_neg)} negative")
 
+        theta = np.zeros((n_features, 1))
+        theta, cost_hist = gradient_descent(X, y_bin, theta, lr, iters)
+
+        thetas_dict[house] = theta.flatten().tolist()
+        costs[house] = cost_hist
+        print(f"Final cost for {house}: {cost_hist[-1]:.6f}")
+
+    return thetas_dict, costs
+
+
+def plot_training_metrics(cost_history: dict, iterations: int) -> None:
+    """visualize training progress: cost over iterations"""
+    plt.figure(figsize=(12, 5))
+
+    # linear scale
+    plt.subplot(1, 2, 1)
+    for house, costs in cost_history.items():
+        plt.plot(costs, label=house, linewidth=1.5)
+    plt.xlabel('Iterations')
+    plt.ylabel('Cost')
+    plt.title("Training Cost Over Iterations")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    # log scale
+    plt.subplot(1, 2, 2)
+    for house, costs in cost_history.items():
+        plt.plot(costs, label=house, linewidth=1.5)
+    plt.xlabel('Iterations')
+    plt.ylabel('Cost (log scale)')
+    plt.title("Training Cost (Log Scale)")
+    plt.yscale('log')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    # show plots
     plt.tight_layout()
     plt.show()
 
 
-def save_file(path: str, model: Dict[str, any]) -> None:
+def save_model(path: str, thetas_dict: dict, houses: list,
+              subjects: list, mu: np.ndarray, sigma: np.ndarray) -> None:
     """saves trained model into file"""
+    model = {
+        "thetas_dict": thetas_dict,
+        "houses": houses,
+        "subjects": subjects,
+        "mu": mu.tolist(),
+        "sigma": sigma.tolist()
+    }
+
     with open(path, 'w') as f:
         json.dump(model, f, indent=2)
-
-
-def get_km_price(file: str) -> Tuple[List[float], List[float]]:
-    """gets values for km and price from csv, returns as tuple of lists"""
-    data = load(file)
-    if data is None:
-        raise FileNotFoundError("Could not open file")
-    if "km" not in data.columns or "price" not in data.columns:
-        raise ValueError("csv doesn't contain the needed values")
-
-    km_list = [float(val) for val in data["km"].tolist()]
-    price_list = [float(val) for val in data["price"].tolist()]
-
-    if len(km_list) < 2:
-        raise ValueError("csv must contain at least two rows")
-
-    return km_list, price_list
+    print(f"Model saved to {path}")
 
 
 def main() -> int:
-    """uses gradient descent algo to train a model to predict price"""
-    start = 0
-    learn = 0.1
-    iters = 1500
-    use_norm = True
+    """uses gradient descent algo to train a model with logistic regression"""
+    parser = argparse.ArgumentParser(
+        description="Hogwarts House prediction logistic regression model training"
+    )
+    parser.add_argument("dataset", help="Path to training CSV (i.e dataset_train.csv)")
+    parser.add_argument("--lr", type=float, default=0.5,
+                        help="Learning rate (default: 0.5)")
+    parser.add_argument("--iters", type=int, default=2000,
+                        help="Number of iterations (default: 2000)")
+    parser.add_argument("--out", default="model.json",
+                        help="Output model file (default: model.json)")
+    args = parser.parse_args()
 
     try:
-        km_list_raw, price_list = get_km_price("data.csv")
+        # load data
+        print(f"Loading data from {args.dataset}")
+        data = load(args.dataset)
+        if data is None:
+            print(f"Error: could not load dataset {args.dataset}")
+            return 1
+
+        # extract subjects from data
+        subjects = get_numeric_cols(data)
+        print(f"{len(subjects)} features found: {subjects}")
+
+        # calculate feature matrix X
+        x_raw = data[subjects].values.astype(float)
+        print(f"Feature matrix shape: {x_raw.shape}")
+
+        # get house labels and sort
+        y_labels = data["Hogwarts House"].values
+        houses = sorted(list(set(y_labels)))
+        print(f"houses: {houses}")
+
+        # preprocess values
+        print(f"Preprocessing...")
+        X_fill = replace_nan(x_raw)
+        mu, sigma = compute_mu_sig(X_fill)
+        X_norm = normalize(X_fill)
+        X_final = add_bias(X_norm)
+
+        # training
+        print(f"Training... Params: learning_rate={args.lr}, iterations={args.iters}")
+        thetas_dict, cost_hist = train_model(X_final, y_labels, houses, args.lr, args.iters)
+
+        # save model
+        print(f"Saving model to {args.out}...")
+        save_model(args.out, thetas_dict, houses, subjects, mu, sigma)
+
+        # draw chart
+        plot_training_metrics(cost_hist, args.iters)
+        return 0
+
     except Exception as e:
         print(f"Error: {e}")
         return 1
-
-    model: Dict[str, any] = {}
-    if use_norm:
-        try:
-            km_list, x_min, x_max = normalize_data(km_list_raw)
-        except Exception as e:
-            print(f"Error: {e}")
-            return 1
-        model["normalized"] = True
-        model["x_min"] = x_min
-        model["x_max"] = x_max
-    else:
-        km_list = km_list_raw
-        model["normalized"] = False
-        model["x_min"] = None
-        model["x_max"] = None
-        if learn == 0.1:
-            learn = 1e-8
-
-    theta0, theta1, loss_history = gradient_descent(start, start, learn,
-                                                    iters, km_list, price_list)
-    model["theta0"] = theta0
-    model["theta1"] = theta1
-    model["start"] = start
-    model["learning_rate"] = learn
-    model["iterations"] = iters
-
-    output_file = "model.json"
-    save_file(output_file, model)
-    print(f"Finished training model and saved to {output_file}")
-    values = f"Values: theta0={theta0:.6f}, theta1={theta1:.6f},"
-    values += f"normalized={model['normalized']}"
-    print(values)
-    print(f"Final MSE loss: {loss_history[-1]:.2f}")
-
-    plot_training_metrics(loss_history, iters)
-
-    return 0
 
 
 if __name__ == "__main__":
