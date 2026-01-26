@@ -78,7 +78,7 @@ def compute(data: pd.DataFrame, houses: List):
 
 
 def main():
-    """main func"""
+    """main func, sorts houses, computes and draws scatter plot"""
     try:
         if len(sys.argv) != 2:
             raise ValueError("Please provide exactly one argument: the path to the CSV file.")

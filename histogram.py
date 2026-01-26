@@ -93,7 +93,7 @@ def compute(data: pd.DataFrame, houses: List):
 
 
 def main():
-    """main func"""
+    """main func, sorts data and calls compute"""
     try:
         if len(sys.argv) != 2:
             raise ValueError("Please provide exactly one argument: the path to the CSV file.")

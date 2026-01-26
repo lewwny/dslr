@@ -1,6 +1,8 @@
 import pandas as pd
+import os
 from typing import Dict, List, Tuple
 import numpy as np
+import json
 
 def is_numeric_series(serie) -> bool:
     """checks if a series is numerical"""
@@ -31,3 +33,79 @@ def safe_pair(x, y) -> Tuple[np.ndarray, np.ndarray]:
     y_arr = np.array(y, dtype=float)
     mask = ~(np.isnan(x_arr) | np.isnan(y_arr))
     return x_arr[mask], y_arr[mask]
+
+
+def arr_tofloat(arr: np.ndarray) -> np.ndarray:
+    """converts an npndarray to a float array"""
+    return np.array(arr, dtype=float)
+
+
+def sigmoid(arr: np.ndarray) -> np.ndarray:
+    """sigmoid function for squashing (takes input and maps to binary)"""
+    arr = np.clip(arr, -500, 500)
+    result = 1.0 / (1.0 + np.exp(-arr))
+    return result
+
+
+def load_model(path: str) -> dict[str, any]:
+    """loads thetas from a json file"""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Model file not found: {path}")
+
+    try:
+        with open(path, 'r') as file:
+            model = json.load(file)
+            required_keys = ["thetas_dict", "houses", "subjects", "mu", "sigma"]
+            for key in required_keys:
+                if key not in model:
+                    raise ValueError(f"Model missing required key: {key}")
+
+        return model
+
+    except (FileNotFoundError, PermissionError, IsADirectoryError):
+        return None
+    except (OSError, json.JSONDecodeError, ValueError) as e:
+        print(f"Error: could not read {path}: {e}")
+        return None
+
+
+def preprocess_vals(data: pd.DataFrame, subjects: List[str], mu: List[float], sigma: List[float]) -> np.ndarray:
+    """preprocess vals to remove nan vals that can break the programs"""
+    cols = []
+    for s in subjects:
+        cols.append(arr_tofloat(data[s]))
+
+    raw_vals = np.column_stack(cols)
+    vals = raw_vals.copy()
+
+    for i in range (vals.shape[1]):
+        mean = float(mu[i])
+        std = 1.0
+        if float(sigma[i]) != 0.0:
+            std = float(sigma[i])
+        nan_mask = np.isnan(vals[:, i])
+        if np.any(nan_mask):
+            vals[nan_mask, i] = mean
+        vals[:, i] = (vals[:, i] - mean) / std
+    return vals
+
+
+def add_bias(arr: np.ndarray) -> np.ndarray:
+    """adds bias to values of arr"""
+    ones = np.ones((arr.shape[0], 1), dtype=float)
+    return np.concatenate([ones, arr], axis = 1)
+
+
+def compute_cost(h: np.ndarray, y: np.ndarray) -> float:
+    """computes binary cross entropy (log loss)
+    formula: J(θ) = -1/m * sigma[y*log(h) + (1-y)*log(1-h)]
+    - When y=1: we want h close to 1, so -log(h) penalizes low h
+    - When y=0: we want h close to 0, so -log(1-h) penalizes high h
+    - The penalty grows exponentially for confident wrong predictions
+    - We clip h to avoid log(0) = -inf for numerical stability"""
+    m = len(y)
+    eps = 1e-15
+    h_clip = np.clip(h, eps, 1 - eps)
+
+    cost = -1/m * np.sum(y * np.log(h_clip) + (1 - y) * np.log(1 - h_clip))
+    return cost
