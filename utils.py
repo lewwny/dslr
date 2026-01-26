@@ -37,7 +37,7 @@ def safe_pair(x, y) -> Tuple[np.ndarray, np.ndarray]:
 
 def arr_tofloat(arr: np.ndarray) -> np.ndarray:
     """converts an npndarray to a float array"""
-    return (np.ndarray(arr, dtype=float))
+    return np.array(arr, dtype=float)
 
 
 def sigmoid(arr: np.ndarray) -> np.ndarray:

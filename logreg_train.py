@@ -33,21 +33,6 @@ def compute_mu_sig(arr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return mu, sigma
 
 
-def compute_cost(h: np.ndarray, y: np.ndarray) -> float:
-    """computes binary cross entropy (log loss)
-    formula: J(θ) = -1/m * sigma[y*log(h) + (1-y)*log(1-h)]
-    - When y=1: we want h close to 1, so -log(h) penalizes low h
-    - When y=0: we want h close to 0, so -log(1-h) penalizes high h
-    - The penalty grows exponentially for confident wrong predictions
-    - We clip h to avoid log(0) = -inf for numerical stability"""
-    m = len(y)
-    eps = 1e-15
-    h_clip = np.clip(h, eps, 1 - eps)
-
-    cost = -1/m * np.sum(y * np.log(h_clip) + (1 - y) * np.log(1 - h_clip))
-    return cost
-
-
 def normalize(arr: np.ndarray, mu: np.ndarray, sigma: np.ndarray) -> np.ndarray:
     """z score normalization of arr vals using the mean and std"""
     return (arr - mu) / sigma
