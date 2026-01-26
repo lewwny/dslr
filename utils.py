@@ -94,3 +94,18 @@ def add_bias(arr: np.ndarray) -> np.ndarray:
     """adds bias to values of arr"""
     ones = np.ones((arr.shape[0], 1), dtype=float)
     return np.concatenate([ones, arr], axis = 1)
+
+
+def compute_cost(h: np.ndarray, y: np.ndarray) -> float:
+    """computes binary cross entropy (log loss)
+    formula: J(θ) = -1/m * sigma[y*log(h) + (1-y)*log(1-h)]
+    - When y=1: we want h close to 1, so -log(h) penalizes low h
+    - When y=0: we want h close to 0, so -log(1-h) penalizes high h
+    - The penalty grows exponentially for confident wrong predictions
+    - We clip h to avoid log(0) = -inf for numerical stability"""
+    m = len(y)
+    eps = 1e-15
+    h_clip = np.clip(h, eps, 1 - eps)
+
+    cost = -1/m * np.sum(y * np.log(h_clip) + (1 - y) * np.log(1 - h_clip))
+    return cost

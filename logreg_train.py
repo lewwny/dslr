@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import argparse
 from typing import List, Tuple, Dict
 from load import load
-from utils import get_numeric_cols, sigmoid, add_bias
+from utils import get_numeric_cols, sigmoid, add_bias, compute_cost
 from bonus import sgd, minibatch
 
 

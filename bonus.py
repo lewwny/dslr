@@ -1,6 +1,5 @@
 import numpy as np
-from utils import sigmoid
-from logreg_train import compute_cost
+from utils import sigmoid, compute_cost
 
 
 def sgd(X: np.ndarray, y: np.ndarray, theta: np.ndarray,
