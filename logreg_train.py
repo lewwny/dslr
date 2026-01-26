@@ -78,7 +78,7 @@ def gradient_descent(X: np.ndarray, y: np.ndarray, theta: float,
         gradient = (1/m) * (X.T @ (h - y))
 
         # update weights
-        theta - theta - learning_rate * gradient
+        theta = theta - learning_rate * gradient
 
         # compute cost and add to history
         cost = compute_cost(h, y)
