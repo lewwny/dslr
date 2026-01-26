@@ -203,7 +203,7 @@ def main() -> int:
         print(f"Preprocessing...")
         X_fill = replace_nan(x_raw)
         mu, sigma = compute_mu_sig(X_fill)
-        X_norm = normalize(X_fill)
+        X_norm = normalize(X_fill, mu, sigma)
         X_final = add_bias(X_norm)
 
         # training
