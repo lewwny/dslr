@@ -57,13 +57,13 @@ def main() -> int:
         data = load(args.data_csv)
         if data is None:
             raise ValueError("Could not load the data csv")
-        if "Hogwarts Houses" not in data.columns:
-            raise ValueError("Data csv must contain Hogwarts Houses")
+        if "Hogwarts House" not in data.columns:
+            raise ValueError("Data csv must contain Hogwarts House")
 
         vals = preprocess_vals(data, subjects, mu, sigma)
         biased_vals = add_bias(vals)
 
-        y_true = [str(val) for val in data["Hogwarts Houses"].to_numpy()]
+        y_true = [str(val) for val in data["Hogwarts House"].to_numpy()]
         y_pred = predict_houses(biased_vals, houses, thetas)
 
         acc = compute_accuracy(y_true, y_pred)
@@ -74,7 +74,7 @@ def main() -> int:
         header = " " * 14 + " ".join([f"{house[:10]:>10}" for house in houses])
         print(header)
         for index, house in enumerate(houses):
-            row = " ".join([f"{cm[index, house]:>10d}" for i in range(len(houses))])
+            row = " ".join([f"{cm[index, house]:>10d}" for house in range(len(houses))])
             print(f"{house[:12]:>12}  {row}")
 
     except Exception as e:
