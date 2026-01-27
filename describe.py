@@ -63,6 +63,40 @@ def max_func(data):
             max_value = value
     return max_value
 
+def missing_values(data):
+    """Missing values function"""
+    missing_count = 0
+    for value in data:
+        if pd.isnull(value):
+            missing_count += 1
+    return missing_count
+
+def skewness(data):
+    """Skewness function"""
+    n = counter(data)
+    if n == 0:
+        return 0
+    mean = meaner(data)
+    std_dev = stder(data)
+    skew_sum = 0
+    for value in data:
+        skew_sum += ((value - mean) / std_dev) ** 3
+    skewness_value = (n / ((n - 1) * (n - 2))) * skew_sum if n > 2 else 0
+    return skewness_value
+
+def kurtosis(data):
+    """Kurtosis function"""
+    n = counter(data)
+    if n == 0:
+        return 0
+    mean = meaner(data)
+    std_dev = stder(data)
+    kurt_sum = 0
+    for value in data:
+        kurt_sum += ((value - mean) / std_dev) ** 4
+    kurtosis_value = ((n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3))) * kurt_sum - (3 * (n - 1) ** 2) / ((n - 2) * (n - 3)) if n > 3 else 0
+    return kurtosis_value
+
 def ft_describe(data):
     """Describe function"""
     new_data = pd.DataFrame()
@@ -80,8 +114,11 @@ def ft_describe(data):
         median = quantiler(col_data, 0.50)
         q3 = quantiler(col_data, 0.75)
         max_val = max_func(col_data)
-        new_data[col] = [count, mean, std, min_val, q1, median, q3, max_val]
-    new_data.index = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
+        missing = missing_values(data[col])
+        skew = skewness(col_data)
+        kurt = kurtosis(col_data)
+        new_data[col] = [count, mean, std, min_val, q1, median, q3, max_val, missing, skew, kurt]
+    new_data.index = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max', 'missing', 'skewness', 'kurtosis']
     return new_data
 
 def main():
