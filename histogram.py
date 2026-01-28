@@ -1,4 +1,3 @@
-import sys
 from load import load
 from typing import Dict, List, Tuple
 import numpy as np
@@ -95,9 +94,7 @@ def compute(data: pd.DataFrame, houses: List):
 def main():
     """main func, sorts data and calls compute"""
     try:
-        if len(sys.argv) != 2:
-            raise ValueError("Please provide exactly one argument: the path to the CSV file.")
-        path = sys.argv[1]
+        path = "./datasets/dataset_train.csv"
         data = load(path)
         houses = sorted([h for h in data["Hogwarts House"].dropna().unique()])
         compute(data, houses)
